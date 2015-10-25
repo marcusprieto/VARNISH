@@ -1,0 +1,115 @@
+-Principal
+	1. Otimização de performance do backend, dar velocidade a sua webpage, 
+	2. Fail over, distribui as páginas do cache se o backend esta fora do ar
+	3. Escalonamento
+
+-Desabafar seus servidores
+	1. menos quantidade de servidores
+	2. pequenos servidores (hardware)
+	3. 250.000 req/s on Desktop hardware
+	4. Diminuicao de custos com hardware, eletricidade e espaço no rack
+	5. Em termos de hardware, de 14 para 2 servers
+        6. Baseado em C e usa VCL (Varnish Configuration Language)
+
+-Proteção
+	Traffic
+	DDOs attack
+	
+- Definições
+	Backend - Servidores Web, exemplo: Apache, Nginx e etc
+	HIT - Request de cliente encontrado no cache
+	MISS - Request de cliente não encontrado no cache
+	PASS - Instrução para acesso do cache ao backend
+	PIPE - Se pode utilizar em streamings de videos, arquivos grandes e etc
+
+- Breve checagem de hardware
+	- Veja quantos processadores
+	- Veja quanto de memória com intuito de escolher a melhor particularidade, se malloc, file ou Varnish Massive Storage Engine (MSE)
+	OBS: Melhores praticas pedem hardware - Se 32GB, use 30G -s malloc , e SSD.
+
+
+Comandos importantes: varnishlog, varnishstat
+Links uteis: http://kly.no/posts/2010_01_26__Varnish_best_practices__.html
+
+TESTES
+
+- Para requisição de urls diferentes, a configuração é mais ou menos assim:
+
+backend default {
+    .host = "127.0.0.1";
+    .port = "8080";
+}
+
+backend Jb1Teste {
+    .host = "192.168.0.20";
+    .port = "8081";
+}
+
+sub vcl_recv {
+    
+if (req.url ~ "^/Jb1Teste/") {
+        set req.backend_hint = Jb1Teste;
+
+    } else {
+        set req.backend_hint = default;
+    }
+
+
+}
+
+############################################################################
+
+#Configuração backend com failover
+
+backend jboss1 {
+    .host = "192.168.0.20";
+    .port = "8081";
+    .probe = {
+        .url = "/index.php";
+        .timeout = 10s;
+        .interval = 5s;
+        .window = 5;
+        .threshold = 3;
+    }
+}
+
+backend jboss2 {
+    .host = "192.168.0.21";
+    .port = "8081";
+    .probe = {
+        .url = "/index.php";
+        .timeout = 10s;
+        .interval = 5s;
+        .window = 5;
+        .threshold = 3;
+    }
+}
+
+import directors;
+
+sub vcl_init {
+    new bar = directors.round_robin();
+    bar.add_backend(jboss1);
+    bar.add_backend(jboss2);
+}
+
+LOG do Varnish: varnishlog
+
+OBS: Veja o encaminhamento das conexões na porta 80 para os servidores Jboss1 e Jboss2 na porta 8081
+
+-   BackendClose   16 jboss2(192.168.0.21,,8081) toolate
+-   BackendOpen    16 jboss2(192.168.0.21,,8081) 192.168.0.23 38607 
+-   Backend        16 bar jboss2(192.168.0.21,,8081)
+-   BackendReuse   16 jboss2(192.168.0.21,,8081)
+-   BackendClose   15 jboss1(192.168.0.20,,8081) toolate
+-   BackendOpen    14 jboss1(192.168.0.20,,8081) 192.168.0.23 57116 
+-   Backend        14 bar jboss1(192.168.0.20,,8081)
+-   BackendReuse   14 jboss1(192.168.0.20,,8081)
+ 	
+Dicas sobre Tunning:
+
+If you can contain your cache in memory, use malloc. If you have 32GB of physical memory, using -smalloc,30G is a good choice. The size you specify is for the cache, and does not include session workspace and such, that's why you don't want to specify -smalloc,32G on a 32GB-system.	
+
+If you can not contain your cache in memory, first consider if you really need that big of a cache. Then consider buying more memory. Then sleep on it. Then, if you still think you need to use disk, use -sfile. On Linux, -sfile performs far better than -smalloc once you start hitting disk. We're talking pie-chart-material. You should also make sure the filesystem is mounted with noatime, though it shouldn't be necessary. On Linux, my cold-hit tests (a cold hit being a cache hit that has to be read from disk, as opposed to a hot hit which is read from memory) take about 6000 seconds to run on -smalloc, while it takes 4000 seconds on -sfile with the same hardware.  Consistently. However, your milage may vary with things such as kernel version, so test both anyway. My tests are easy enough: Run httperf through x-thousand urls in order. Then do it again in the same order.
+
+Some of the most challenging setups we work with are disk-intensive setups, so try to avoid it. SSD is a relatively cheap way to buy yourself out of disk-issues though.

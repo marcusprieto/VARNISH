@@ -1,0 +1,31 @@
+Varnish is more than a reverse HTTP proxy. Depending on the installation, Varnish can be used as:
+
+• web application firewall,
+• DDoS attacks defender,
+• load balancer,
+• integration point,
+• single sign-on gateway,
+• authentication and authorization policy mechanism,
+• quick fix for unstable backends, and
+• HTTP router.
+
+Varnish Upgrade 
+
+If you want to migrate your VCL code from Varnish 3 to Varnish 4, you may be interested in looking
+at the varnish3to4 script. See the VCL Migrator from Varnish 3 to Varnish 4 section for more
+information.
+
+You can use cookies or the user-agent of a client request to create a hash key
+
+#Comand varnishdadm
+
+• start and stop varnishd,
+• change configuration parameters,
+• reload the Varnish Configuration Language (VCL),
+• view the most up-to-date documentation for parameters, and
+• more.
+
+#Command varnishstat
+Is particularly useful when using it together with varnishlog to analyze your Varnish installation
+
+
